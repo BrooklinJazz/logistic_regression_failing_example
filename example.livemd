@@ -1,0 +1,103 @@
+<!-- livebook:{"file_entries":[{"name":"expected_confusion_matrix.png","type":"attachment"},{"name":"my_confusion_matrix.png","type":"attachment"}]} -->
+
+# Logistic Regression Incorrect Example
+
+```elixir
+Mix.install([
+  {:scholar, "~> 0.2"},
+  {:nx, "~> 0.5"},
+  {:exla, "~> 0.5"},
+  {:vega_lite, "~> 0.1.6"},
+  {:kino_vega_lite, "~> 0.1.6"},
+  {:scidata, "~> 0.1"}
+])
+```
+
+## Setup
+
+### Description Of Problem
+
+Running the code below for me produces the following diagram:
+
+<!-- livebook:{"break_markdown":true} -->
+
+![](files/my_confusion_matrix.png)
+
+<!-- livebook:{"break_markdown":true} -->
+
+According to the book it should produce the following diagram
+
+<!-- livebook:{"break_markdown":true} -->
+
+![](files/expected_confusion_matrix.png)
+
+<!-- livebook:{"break_markdown":true} -->
+
+### Code Example
+
+Below is the example code from the book that doesn't produce the expected diagram on my machine.
+
+```elixir
+Nx.default_backend(EXLA.Backend)
+Nx.Defn.default_options(compiler: EXLA)
+```
+
+```elixir
+{inputs, targets} = Scidata.Wine.download()
+```
+
+```elixir
+{train, test} =
+  inputs
+  |> Enum.zip(targets)
+  |> Enum.shuffle()
+  |> Enum.split(floor(length(inputs) * 0.8))
+
+{train_inputs, train_targets} = Enum.unzip(train)
+train_inputs = Nx.tensor(train_inputs)
+train_targets = Nx.tensor(train_targets)
+
+{test_inputs, test_targets} = Enum.unzip(test)
+test_inputs = Nx.tensor(test_inputs)
+test_targets = Nx.tensor(test_targets)
+```
+
+```elixir
+train_inputs = Scholar.Preprocessing.min_max_scale(train_inputs)
+test_inputs = Scholar.Preprocessing.min_max_scale(test_inputs)
+```
+
+```elixir
+model =
+  Scholar.Linear.LogisticRegression.fit(
+    train_inputs,
+    train_targets,
+    num_classes: 3
+  )
+```
+
+```elixir
+test_preds = Scholar.Linear.LogisticRegression.predict(model, test_inputs)
+```
+
+```elixir
+Scholar.Metrics.Classification.accuracy(test_targets, test_preds)
+```
+
+```elixir
+Scholar.Metrics.Classification.confusion_matrix(test_targets, test_preds, num_classes: 3)
+```
+
+```elixir
+alias VegaLite, as: Vl
+
+Vl.new(title: "Confusion Matrix", width: 600, height: 600)
+|> Vl.data_from_values(%{
+  predicted: Nx.to_flat_list(test_preds),
+  actual: Nx.to_flat_list(test_targets)
+})
+|> Vl.mark(:rect)
+|> Vl.encode_field(:x, "predicted")
+|> Vl.encode_field(:y, "actual")
+|> Vl.encode(:color, aggregate: :count)
+```
